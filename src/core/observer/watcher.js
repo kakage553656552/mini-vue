@@ -1,16 +1,32 @@
 import Dep, { pushTarget, popTarget } from './dep.js';
+import { queueWatcher } from './scheduler.js';
+
+let uid = 0;
 
 export default class Watcher {
-  constructor(vm, expOrFn, cb) {
+  constructor(vm, expOrFn, cb, options) {
     this.vm = vm;
+    if (options) {
+        this.lazy = !!options.lazy;
+        this.before = options.before;
+        this.dirty = this.lazy; 
+    } else {
+        this.lazy = false;
+        this.dirty = false;
+    }
+    this.id = ++uid;
+    this.active = true;
     this.cb = cb;
+    this.deps = [];
+    this.depIds = new Set();
+    
     // Parse expOrFn to a getter function
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn;
     } else {
       this.getter = parsePath(expOrFn);
     }
-    this.value = this.get();
+    this.value = this.lazy ? undefined : this.get();
   }
 
   get() {
@@ -28,19 +44,54 @@ export default class Watcher {
   }
 
   addDep(dep) {
-    dep.addSub(this);
+    const id = dep.id;
+    if (!this.depIds.has(id)) {
+        this.depIds.add(id);
+        this.deps.push(dep);
+        dep.addSub(this);
+    }
   }
 
   update() {
-    this.run();
+    if (this.lazy) {
+        this.dirty = true;
+    } else {
+        queueWatcher(this);
+    }
+  }
+
+  evaluate() {
+      this.value = this.get();
+      this.dirty = false;
+  }
+
+  depend() {
+      let i = this.deps.length;
+      while (i--) {
+          this.deps[i].depend();
+      }
+  }
+
+  teardown() {
+    if (this.active) {
+      let i = this.deps.length;
+      while (i--) {
+        this.deps[i].removeSub(this);
+      }
+      this.active = false;
+    }
   }
 
   run() {
-    const value = this.get();
-    const oldValue = this.value;
-    if (value !== oldValue) {
-      this.value = value;
-      this.cb.call(this.vm, value, oldValue);
+    if (this.active) {
+      const value = this.get();
+      const oldValue = this.value;
+      if (value !== oldValue || typeof value === 'object') {
+        this.value = value;
+        if (this.cb) {
+            this.cb.call(this.vm, value, oldValue);
+        }
+      }
     }
   }
 }
@@ -59,4 +110,3 @@ function parsePath(path) {
     return obj;
   };
 }
-

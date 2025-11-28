@@ -4,6 +4,13 @@ const startTagOpen = new RegExp("^<" + qnameCapture);
 const startTagClose = /^\s*(\/?)>/;
 const endTag = new RegExp("^<\\/" + qnameCapture + "[^>]*>");
 const defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g;
+const comment = /^<!\--/;
+
+// Elements that are self-closing (void elements)
+function isUnaryTag(tag) {
+  const unaryTags = 'area,base,br,col,embed,hr,img,input,keygen,link,meta,param,source,track,wbr';
+  return unaryTags.split(',').indexOf(tag) > -1;
+}
 
 function parse(template) {
   let root;
@@ -13,9 +20,19 @@ function parse(template) {
   while (template) {
     let textEnd = template.indexOf('<');
     if (textEnd === 0) {
+      // Comment:
+      if (comment.test(template)) {
+        const commentEnd = template.indexOf('-->');
+
+        if (commentEnd >= 0) {
+          advance(commentEnd + 3);
+          continue;
+        }
+      }
+      
       const startTagMatch = parseStartTag();
       if (startTagMatch) {
-        start(startTagMatch.tagName, startTagMatch.attrs);
+        start(startTagMatch.tagName, startTagMatch.attrs, startTagMatch.unary);
         continue;
       }
       const endTagMatch = template.match(endTag);
@@ -26,8 +43,19 @@ function parse(template) {
       }
     }
 
-    let text;
+    let text, rest, next;
     if (textEnd >= 0) {
+      rest = template.slice(textEnd);
+      while (
+        !endTag.test(rest) &&
+        !startTagOpen.test(rest) &&
+        !comment.test(rest)
+      ) {
+        next = rest.indexOf('<', 1);
+        if (next < 0) break;
+        textEnd += next;
+        rest = template.slice(textEnd);
+      }
       text = template.substring(0, textEnd);
     }
     if (textEnd < 0) {
@@ -36,7 +64,15 @@ function parse(template) {
 
     if (text) {
       advance(text.length);
-      chars(text);
+    }
+
+    if (textEnd === 0 && !text) {
+        text = template.substring(0, 1);
+        advance(1);
+    }
+
+    if (text) {
+        chars(text);
     }
   }
 
@@ -61,13 +97,14 @@ function parse(template) {
         });
       }
       if (end) {
+        match.unary = isUnaryTag(match.tagName) || !!end[1];
         advance(end[0].length);
         return match;
       }
     }
   }
 
-  function start(tagName, attrs) {
+  function start(tagName, attrs, unary) {
     const element = {
       type: 1,
       tag: tagName,
@@ -77,6 +114,9 @@ function parse(template) {
       children: []
     };
 
+    processFor(element);
+    processIf(element);
+
     if (!root) {
       root = element;
     }
@@ -85,19 +125,33 @@ function parse(template) {
       currentParent.children.push(element);
     }
 
-    stack.push(element);
-    currentParent = element;
+    if (!unary) {
+        stack.push(element);
+        currentParent = element;
+    }
   }
 
   function end(tagName) {
-    stack.length -= 1;
-    currentParent = stack[stack.length - 1];
+    // Simple validation: check if tagName matches current stack top
+    // If not, we might have unclosed tags or mismatch
+    // For simplicity in this mini-vue, we just try to find the match in stack and pop until there.
+    let pos = 0;
+    for (pos = stack.length - 1; pos >= 0; pos--) {
+        if (stack[pos].tag.toLowerCase() === tagName.toLowerCase()) {
+            break;
+        }
+    }
+    
+    if (pos >= 0) {
+        stack.length = pos;
+        currentParent = stack[stack.length - 1];
+    }
   }
 
   function chars(text) {
     text = text.trim();
     if (text.length > 0) {
-        if (currentParent) { // Only add text if we have a parent
+        if (currentParent) { 
             currentParent.children.push({
                 type: 3,
                 text
@@ -117,7 +171,46 @@ function makeAttrsMap(attrs) {
   return map;
 }
 
+function processFor(el) {
+  let exp;
+  if ((exp = getAndRemoveAttr(el, 'v-for'))) {
+    const inMatch = exp.match(/([a-zA-Z_][\w]*)\s+(?:in|of)\s+(.*)/);
+    if (inMatch) {
+      el.for = inMatch[2].trim();
+      el.alias = inMatch[1].trim();
+    }
+  }
+}
+
+function processIf(el) {
+  let exp;
+  if ((exp = getAndRemoveAttr(el, 'v-if'))) {
+    el.if = exp;
+  }
+}
+
+function getAndRemoveAttr(el, name) {
+  let val;
+  if ((val = el.attrsMap[name]) != null) {
+    const list = el.attrsList;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].name === name) {
+        list.splice(i, 1);
+        break;
+      }
+    }
+  }
+  return val;
+}
+
 function generate(el) {
+  if (el.for && !el.forProcessed) {
+    return genFor(el);
+  }
+  if (el.if && !el.ifProcessed) {
+    return genIf(el);
+  }
+
   const children = genChildren(el);
   const code = `_c('${el.tag}', ${
     el.attrsList.length ? JSON.stringify(makeAttrsMap(el.attrsList)) : 'undefined'
@@ -125,6 +218,16 @@ function generate(el) {
     children ? `,${children}` : ''
   })`;
   return code;
+}
+
+function genFor(el) {
+  el.forProcessed = true;
+  return `_l((${el.for}), function(${el.alias}) { return ${generate(el)} })`;
+}
+
+function genIf(el) {
+  el.ifProcessed = true;
+  return `(${el.if}) ? ${generate(el)} : _e()`;
 }
 
 function genChildren(el) {
@@ -168,4 +271,3 @@ export function compileToFunctions(template) {
   const render = new Function(code);
   return render;
 }
-

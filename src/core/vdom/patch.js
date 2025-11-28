@@ -1,54 +1,213 @@
 export function patch(oldVnode, vnode) {
-  if (oldVnode.nodeType) {
-    // Initial render: oldVnode is a real DOM element
+  if (!oldVnode) {
+    return createElm(vnode);
+  }
+
+  const isRealElement = oldVnode.nodeType;
+  if (isRealElement) {
     const parent = oldVnode.parentNode;
-    const element = createElm(vnode);
-    parent.insertBefore(element, oldVnode.nextSibling);
-    parent.removeChild(oldVnode);
-    return element;
-  } else {
-    // Update: simplified diff
-    if (!vnode) return; // destroy
-    if (oldVnode.tag === vnode.tag) {
-        vnode.elm = oldVnode.elm;
-        updateChildren(vnode.elm, oldVnode.children, vnode.children);
-        
-        // Update attributes/events
-        updateAttrs(vnode.elm, oldVnode.data, vnode.data, vnode.context);
-        
-        if (vnode.text !== undefined) {
-           if (oldVnode.text !== vnode.text) {
-               vnode.elm.textContent = vnode.text;
-           }
-        }
-    } else {
-        // Replace
-        const parent = oldVnode.elm.parentNode;
-        const element = createElm(vnode);
-        parent.insertBefore(element, oldVnode.elm);
-        parent.removeChild(oldVnode.elm);
+    const sibling = oldVnode.nextSibling;
+    oldVnode = emptyNodeAt(oldVnode);
+    
+    createElm(vnode, parent, sibling);
+    
+    if (parent) {
+       parent.removeChild(oldVnode.elm);
+       oldVnode.elm = null;
     }
     return vnode.elm;
   }
+
+  if (!vnode) {
+      if (oldVnode.elm.parentNode) {
+          oldVnode.elm.parentNode.removeChild(oldVnode.elm);
+      }
+      return;
+  }
+
+  if (sameVnode(oldVnode, vnode)) {
+    patchVnode(oldVnode, vnode);
+  } else {
+    const parent = oldVnode.elm.parentNode;
+    createElm(vnode, parent, oldVnode.elm);
+    if (parent) {
+        parent.removeChild(oldVnode.elm);
+    }
+  }
+  return vnode.elm;
 }
 
-function createElm(vnode) {
+function emptyNodeAt(elm) {
+    return {
+        tag: elm.tagName.toLowerCase(),
+        elm: elm,
+        data: {},
+        children: [],
+        text: undefined,
+        key: undefined
+    };
+}
+
+function sameVnode(a, b) {
+  return (
+    a.key === b.key &&
+    (
+      (a.tag === b.tag) &&
+      isDef(a.data) === isDef(b.data)
+    )
+  );
+}
+
+function isDef(v) {
+    return v !== undefined && v !== null;
+}
+
+function createElm(vnode, parent, refElm) {
   if (vnode.tag) {
     const el = document.createElement(vnode.tag);
     vnode.elm = el;
-    
     updateAttrs(el, {}, vnode.data, vnode.context);
 
     if (vnode.children) {
       vnode.children.forEach(child => {
-        el.appendChild(createElm(child));
+        createElm(child, el);
       });
+    }
+    if (parent) {
+        parent.insertBefore(el, refElm);
     }
     return el;
   } else {
     const el = document.createTextNode(vnode.text);
     vnode.elm = el;
+    if (parent) {
+        parent.insertBefore(el, refElm);
+    }
     return el;
+  }
+}
+
+function patchVnode(oldVnode, vnode) {
+    if (oldVnode === vnode) {
+        return;
+    }
+    const elm = vnode.elm = oldVnode.elm;
+    const oldCh = oldVnode.children;
+    const ch = vnode.children;
+    
+    if (vnode.data || oldVnode.data) {
+        updateAttrs(elm, oldVnode.data, vnode.data, vnode.context);
+    }
+
+    if (isDef(vnode.text)) {
+        if (vnode.text !== oldVnode.text) {
+            elm.textContent = vnode.text;
+        }
+    } else {
+        if (isDef(oldCh) && isDef(ch)) {
+            if (oldCh !== ch) updateChildren(elm, oldCh, ch);
+        } else if (isDef(ch)) {
+             if (isDef(oldVnode.text)) elm.textContent = '';
+             addVnodes(elm, null, ch, 0, ch.length - 1);
+        } else if (isDef(oldCh)) {
+             removeVnodes(elm, oldCh, 0, oldCh.length - 1);
+        } else if (isDef(oldVnode.text)) {
+             elm.textContent = '';
+        }
+    }
+}
+
+function addVnodes(parentElm, refElm, vnodes, startIdx, endIdx) {
+    for (; startIdx <= endIdx; ++startIdx) {
+        createElm(vnodes[startIdx], parentElm, refElm);
+    }
+}
+
+function removeVnodes(parentElm, vnodes, startIdx, endIdx) {
+    for (; startIdx <= endIdx; ++startIdx) {
+        const ch = vnodes[startIdx];
+        if (ch) {
+            parentElm.removeChild(ch.elm);
+        }
+    }
+}
+
+function updateChildren(parentElm, oldCh, newCh) {
+    let oldStartIdx = 0;
+    let newStartIdx = 0;
+    let oldEndIdx = oldCh.length - 1;
+    let oldStartVnode = oldCh[0];
+    let oldEndVnode = oldCh[oldEndIdx];
+    let newEndIdx = newCh.length - 1;
+    let newStartVnode = newCh[0];
+    let newEndVnode = newCh[newEndIdx];
+    let oldKeyToIdx, idxInOld, vnodeToMove, refElm;
+
+    while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+      if (!oldStartVnode) {
+        oldStartVnode = oldCh[++oldStartIdx];
+      } else if (!oldEndVnode) {
+        oldEndVnode = oldCh[--oldEndIdx];
+      } else if (sameVnode(oldStartVnode, newStartVnode)) {
+        patchVnode(oldStartVnode, newStartVnode);
+        oldStartVnode = oldCh[++oldStartIdx];
+        newStartVnode = newCh[++newStartIdx];
+      } else if (sameVnode(oldEndVnode, newEndVnode)) {
+        patchVnode(oldEndVnode, newEndVnode);
+        oldEndVnode = oldCh[--oldEndIdx];
+        newEndVnode = newCh[--newEndIdx];
+      } else if (sameVnode(oldStartVnode, newEndVnode)) { 
+        patchVnode(oldStartVnode, newEndVnode);
+        parentElm.insertBefore(oldStartVnode.elm, oldEndVnode.elm.nextSibling);
+        oldStartVnode = oldCh[++oldStartIdx];
+        newEndVnode = newCh[--newEndIdx];
+      } else if (sameVnode(oldEndVnode, newStartVnode)) { 
+        patchVnode(oldEndVnode, newStartVnode);
+        parentElm.insertBefore(oldEndVnode.elm, oldStartVnode.elm);
+        oldEndVnode = oldCh[--oldEndIdx];
+        newStartVnode = newCh[++newStartIdx];
+      } else {
+        if (!oldKeyToIdx) oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
+        idxInOld = isDef(newStartVnode.key)
+          ? oldKeyToIdx[newStartVnode.key]
+          : findIdxInOld(newStartVnode, oldCh, oldStartIdx, oldEndIdx);
+        if (!idxInOld) { 
+          createElm(newStartVnode, parentElm, oldStartVnode.elm);
+        } else {
+          vnodeToMove = oldCh[idxInOld];
+          if (sameVnode(vnodeToMove, newStartVnode)) {
+            patchVnode(vnodeToMove, newStartVnode);
+            oldCh[idxInOld] = undefined;
+            parentElm.insertBefore(vnodeToMove.elm, oldStartVnode.elm);
+          } else {
+            createElm(newStartVnode, parentElm, oldStartVnode.elm);
+          }
+        }
+        newStartVnode = newCh[++newStartIdx];
+      }
+    }
+    if (oldStartIdx > oldEndIdx) {
+      refElm = newCh[newEndIdx + 1] ? newCh[newEndIdx + 1].elm : null;
+      addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx);
+    } else if (newStartIdx > newEndIdx) {
+      removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx);
+    }
+}
+
+function createKeyToOldIdx (children, beginIdx, endIdx) {
+  let i, key;
+  const map = {};
+  for (i = beginIdx; i <= endIdx; ++i) {
+    key = children[i].key;
+    if (isDef(key)) map[key] = i;
+  }
+  return map;
+}
+
+function findIdxInOld (node, oldCh, start, end) {
+  for (let i = start; i < end; i++) {
+    const c = oldCh[i];
+    if (isDef(c) && sameVnode(node, c)) return i;
   }
 }
 
@@ -57,24 +216,19 @@ function updateAttrs(el, oldData, newData, context) {
     oldData = oldData || {};
     newData = newData || {};
 
-    // Remove old attrs
     for (let key in oldData) {
         if (!(key in newData)) {
              el.removeAttribute(key);
         }
     }
 
-    // Add/Update new attrs
     for (let key in newData) {
-        // Event handling
         if (key.startsWith('@')) {
             const eventName = key.slice(1);
             const methodName = newData[key];
-            const handler = context && context[methodName];
-            // Remove old listener if exists (simplified: blindly add for now or use specific logic)
-            // Ideally we should keep track of listeners to remove them. 
-            // For "mini", we just add. A real implementation needs removeEventListener.
-            // To prevent duplicate listeners on update, we should check if it changed.
+            
+            let handler = context && context[methodName];
+            
             if (oldData[key] !== newData[key]) {
                 if (handler) {
                     el.addEventListener(eventName, handler.bind(context));
@@ -83,25 +237,11 @@ function updateAttrs(el, oldData, newData, context) {
             continue;
         }
         
-        // v-model handling
         if (key === 'v-model') {
             const dataKey = newData[key];
-            
-            // Only update value if it's different to prevent infinite loops/cursor jumps
             if (el.value !== context[dataKey]) {
                 el.value = context[dataKey];
             }
-            
-            // Remove old listener if it exists (simplified check)
-            // In a real implementation we would track the listener function to remove it specifically
-            // For now, we just add a new one. To avoid memory leaks/duplicates in a long running app,
-            // we should properly manage listeners.
-            // But strictly for the "freeze" issue: we are likely re-adding the input listener 
-            // every time patch happens, and if the patch is synchronous and triggers another input event...
-            // Actually, the freeze is likely due to the infinite loop:
-            // Input -> Data Change -> Render -> Patch -> set el.value -> Input Event (in some browsers) -> Data Change...
-            // Checking if value changed breaks the loop.
-            
              if (!el._vModelListenerAttached) {
                 el.addEventListener('input', (e) => {
                     context[dataKey] = e.target.value;
@@ -111,37 +251,8 @@ function updateAttrs(el, oldData, newData, context) {
             continue;
         }
 
-        // Normal attributes
         if (oldData[key] !== newData[key]) {
              el.setAttribute(key, newData[key]);
-        }
-    }
-}
-
-function updateChildren(parentElm, oldCh, newCh) {
-    if (!oldCh) oldCh = [];
-    if (!newCh) newCh = [];
-
-    const oldLen = oldCh.length;
-    const newLen = newCh.length;
-    const commonLen = Math.min(oldLen, newLen);
-
-    // Patch common children
-    for (let i = 0; i < commonLen; i++) {
-        patch(oldCh[i], newCh[i]);
-    }
-
-    // Add new children
-    if (newLen > oldLen) {
-        for (let i = oldLen; i < newLen; i++) {
-            parentElm.appendChild(createElm(newCh[i]));
-        }
-    }
-
-    // Remove old children
-    if (oldLen > newLen) {
-        for (let i = newLen; i < oldLen; i++) {
-            parentElm.removeChild(oldCh[i].elm);
         }
     }
 }
