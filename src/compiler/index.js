@@ -122,12 +122,37 @@ function parse(template) {
     }
 
     if (currentParent) {
-      currentParent.children.push(element);
+      if (element.elseif || element.else) {
+        processIfConditions(element, currentParent);
+      } else {
+        currentParent.children.push(element);
+      }
     }
 
     if (!unary) {
         stack.push(element);
         currentParent = element;
+    }
+  }
+  
+  function processIfConditions(el, parent) {
+    const prev = findPrevElement(parent.children);
+    if (prev && prev.if) {
+      prev.ifConditions.push({
+        exp: el.elseif,
+        block: el
+      });
+    } else {
+      parent.children.push(el);
+    }
+  }
+  
+  function findPrevElement(children) {
+    let i = children.length;
+    while (i--) {
+      if (children[i].type === 1) {
+        return children[i];
+      }
     }
   }
 
@@ -186,6 +211,19 @@ function processIf(el) {
   let exp;
   if ((exp = getAndRemoveAttr(el, 'v-if'))) {
     el.if = exp;
+    el.ifConditions = [{ exp, block: el }];
+  } else if ((exp = getAndRemoveAttr(el, 'v-else-if'))) {
+    el.elseif = exp;
+  } else if (getAndRemoveAttr(el, 'v-else') !== undefined) {
+    el.else = true;
+  }
+  
+  if ((exp = getAndRemoveAttr(el, 'v-show'))) {
+    el.show = exp;
+  }
+  
+  if ((exp = getAndRemoveAttr(el, 'ref'))) {
+    el.ref = exp;
   }
 }
 
@@ -211,13 +249,87 @@ function generate(el) {
     return genIf(el);
   }
 
+  const data = genData(el);
   const children = genChildren(el);
-  const code = `_c('${el.tag}', ${
-    el.attrsList.length ? JSON.stringify(makeAttrsMap(el.attrsList)) : 'undefined'
+  const code = `_c('${el.tag}'${
+    data ? `,${data}` : ',undefined'
   }${
     children ? `,${children}` : ''
   })`;
   return code;
+}
+
+function genData(el) {
+  let data = '{';
+  const attrs = el.attrsList;
+  
+  if (el.ref) {
+    data += `"ref":"${el.ref}",`;
+  }
+  
+  if (el.show) {
+    data += `"v-show":(${el.show}),`;
+  }
+  
+  if (attrs && attrs.length) {
+    for (let i = 0; i < attrs.length; i++) {
+      const attr = attrs[i];
+      const name = attr.name;
+      let value = attr.value;
+      
+      if (name.startsWith('@') || name.startsWith('v-on:')) {
+        let event = name.startsWith('@') ? name.slice(1) : name.slice(5);
+        const modifiers = {};
+        const modifierMatch = event.match(/^([^.]+)(.*)$/);
+        if (modifierMatch) {
+          event = modifierMatch[1];
+          const modifierStr = modifierMatch[2];
+          if (modifierStr) {
+            modifierStr.split('.').forEach(m => {
+              if (m) modifiers[m] = true;
+            });
+          }
+        }
+        
+        let handler = '';
+        
+        const keyModifiers = ['enter', 'tab', 'delete', 'esc', 'space', 'up', 'down', 'left', 'right'];
+        const hasKeyModifier = keyModifiers.some(k => modifiers[k]);
+        
+        if (hasKeyModifier) {
+          const keyCode = {
+            enter: 13, tab: 9, delete: 46, esc: 27, space: 32,
+            up: 38, down: 40, left: 37, right: 39
+          };
+          const keyName = keyModifiers.find(k => modifiers[k]);
+          handler += `if($event.keyCode !== ${keyCode[keyName]}) return;`;
+        }
+        
+        if (modifiers.stop) handler += `$event.stopPropagation();`;
+        if (modifiers.prevent) handler += `$event.preventDefault();`;
+        
+        if (value.includes('(')) {
+          handler += `return (${value});`;
+        } else {
+          handler += `return this.${value}();`;
+        }
+        
+        data += `"@${event}":function($event){${handler}},`;
+      } else if (name.startsWith(':') || name.startsWith('v-bind:')) {
+        const attrName = name.startsWith(':') ? name.slice(1) : name.slice(7);
+        data += `"${attrName}":${value},`;
+      } else if (name === 'v-model') {
+        data += `"v-model":"${value}",`;
+      } else if (name.startsWith('style')) {
+        data += `"${name}":"${value}",`;
+      } else {
+        data += `"${name}":"${value}",`;
+      }
+    }
+  }
+  
+  data = data.replace(/,$/, '') + '}';
+  return data === '{}' ? null : data;
 }
 
 function genFor(el) {
@@ -227,7 +339,20 @@ function genFor(el) {
 
 function genIf(el) {
   el.ifProcessed = true;
-  return `(${el.if}) ? ${generate(el)} : _e()`;
+  return genIfConditions(el.ifConditions.slice());
+}
+
+function genIfConditions(conditions) {
+  if (!conditions.length) {
+    return '_e()';
+  }
+  
+  const condition = conditions.shift();
+  if (condition.exp) {
+    return `(${condition.exp}) ? ${generate(condition.block)} : ${genIfConditions(conditions)}`;
+  } else {
+    return generate(condition.block);
+  }
 }
 
 function genChildren(el) {

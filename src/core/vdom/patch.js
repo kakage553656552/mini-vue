@@ -218,20 +218,55 @@ function updateAttrs(el, oldData, newData, context) {
 
     for (let key in oldData) {
         if (!(key in newData)) {
-             el.removeAttribute(key);
+             if (key.startsWith('@') && el._listeners) {
+                 const eventName = key.slice(1);
+                 if (el._listeners[eventName]) {
+                     el.removeEventListener(eventName, el._listeners[eventName]);
+                     delete el._listeners[eventName];
+                 }
+             } else {
+                 el.removeAttribute(key);
+             }
         }
+    }
+    
+    if (newData.ref && context) {
+        registerRef(context, newData.ref, el);
     }
 
     for (let key in newData) {
         if (key.startsWith('@')) {
             const eventName = key.slice(1);
-            const methodName = newData[key];
+            const handler = newData[key];
             
-            let handler = context && context[methodName];
+            // 初始化存储事件处理器的对象
+            if (!el._listeners) {
+                el._listeners = {};
+            }
             
+            // 如果处理器有变化
             if (oldData[key] !== newData[key]) {
+                // 1. 移除旧的监听器
+                if (el._listeners[eventName]) {
+                    el.removeEventListener(eventName, el._listeners[eventName]);
+                }
+                
+                // 2. 创建新的绑定函数并添加
                 if (handler) {
-                    el.addEventListener(eventName, handler.bind(context));
+                    let boundHandler;
+                    if (typeof handler === 'function') {
+                        boundHandler = handler.bind(context);
+                    } else if (typeof handler === 'string') {
+                        const method = context && context[handler];
+                        if (method) {
+                            boundHandler = method.bind(context);
+                        }
+                    }
+                    
+                    if (boundHandler) {
+                        el.addEventListener(eventName, boundHandler);
+                        el._listeners[eventName] = boundHandler; // 保存引用以便移除
+                    }
                 }
             }
             continue;
@@ -250,9 +285,26 @@ function updateAttrs(el, oldData, newData, context) {
             }
             continue;
         }
+        
+        if (key === 'v-show') {
+            const shouldShow = newData[key];
+            el.style.display = shouldShow ? '' : 'none';
+            continue;
+        }
 
+        if (key === 'ref') {
+            continue;
+        }
+        
         if (oldData[key] !== newData[key]) {
              el.setAttribute(key, newData[key]);
         }
     }
+}
+
+function registerRef(vm, refKey, el) {
+    if (!vm.$refs) {
+        vm.$refs = {};
+    }
+    vm.$refs[refKey] = el;
 }

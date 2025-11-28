@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test v-show</title>
+</head>
+<body>
+    <div id="app">
+        <button @click="toggle">切换 ({{ visible }})</button>
+        <p v-show="visible">这是测试文字</p>
+    </div>
+
+    <script type="module">
+        import Vue from './src/index.js';
+
+        const vm = new Vue({
+            el: '#app',
+            data: {
+                visible: true
+            },
+            methods: {
+                toggle() {
+                    console.log('toggle before:', this.visible);
+                    this.visible = !this.visible;
+                    console.log('toggle after:', this.visible);
+                }
+            },
+            mounted() {
+                console.log('mounted, visible =', this.visible);
+                console.log('render function:', this.$options.render.toString());
+            }
+        });
+
+        window.vm = vm;
+    </script>
+</body>
+</html>
+
