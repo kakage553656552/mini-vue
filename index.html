@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Vue Comprehensive Demo</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
+        h1 { border-bottom: 2px solid #42b983; padding-bottom: 10px; }
+        h2 { color: #35495e; margin-top: 30px; }
+        .card { background: #f9f9f9; border: 1px solid #e0e0e0; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        button { padding: 6px 12px; background: #42b983; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        button:hover { background: #3aa876; }
+        input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .highlight { color: #e96900; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Mini Vue 功能展示</h1>
+
+        <div class="card">
+            <h2>1. 声明式渲染 (Interpolation)</h2>
+            <p>文本插值: <span class="highlight">{{ message }}</span></p>
+            <p>JS 表达式支持: <span class="highlight">{{ count + 100 }}</span> (Count + 100)</p>
+        </div>
+
+        <div class="card">
+            <h2>2. 双向绑定 (v-model)</h2>
+            <p>尝试修改下方输入框:</p>
+            <input v-model="message" placeholder="Edit me">
+            <p>同步结果: {{ message }}</p>
+        </div>
+
+        <div class="card">
+            <h2>3. 事件处理 (@click)</h2>
+            <p>当前计数: <span class="highlight">{{ count }}</span></p>
+            <button @click="increment">增加 (+1)</button>
+            <button @click="decrement">减少 (-1)</button>
+        </div>
+
+        <div class="card">
+            <h2>4. 响应式对象更新 (Reactivity)</h2>
+            <p>用户信息: {{ user.name }} - {{ user.age }} 岁</p>
+            <button @click="changeUser">修改用户信息</button>
+        </div>
+
+        <div class="card">
+            <h2>5. 侦听器 (Watch)</h2>
+            <p>打开控制台 (F12) 查看 Console，当计数器变化时会打印日志。</p>
+            <p>Watch 状态: {{ watchStatus }}</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import Vue from './src/index.js';
+
+        const vm = new Vue({
+            el: '#app',
+            data: {
+                message: 'Hello Mini Vue!',
+                count: 0,
+                user: {
+                    name: 'Alice',
+                    age: 25
+                },
+                watchStatus: '等待变化...'
+            },
+            methods: {
+                increment() {
+                    this.count++;
+                },
+                decrement() {
+                    this.count--;
+                },
+                changeUser() {
+                    this.user.name = this.user.name === 'Alice' ? 'Bob' : 'Alice';
+                    this.user.age = Math.floor(Math.random() * 50) + 18;
+                }
+            },
+            // 注意：我们的 Mini Vue 暂时没有自动处理 options.watch 的初始化逻辑
+            // 所以我们需要手动在 created 或者直接在外部 $watch
+            // 这里我们在 mount 之后手动演示 $watch
+        });
+
+        // 演示 $watch 功能
+        vm.$watch('count', function(newVal, oldVal) {
+            console.log(`[Watch] Count changed from ${oldVal} to ${newVal}`);
+            this.watchStatus = `检测到变化: ${oldVal} -> ${newVal}`;
+        });
+        
+        // 演示深层监听 (由于目前 Watcher 实现较简单，只支持 key path，
+        // 对象内部变化触发的是对象本身的 dep，需要确保引用变化或者 key 变化)
+        // 我们的 Mini Vue 深度监听支持有限，主要演示顶层属性
+    </script>
+</body>
+</html>
