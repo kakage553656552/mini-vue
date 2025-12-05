@@ -1,5 +1,6 @@
 import Dep, { pushTarget, popTarget } from './dep.js';
 import { queueWatcher } from './scheduler.js';
+import { handleError } from '../instance/lifecycle.js';
 
 let uid = 0;
 
@@ -36,7 +37,7 @@ export default class Watcher {
     try {
       value = this.getter.call(vm, vm);
     } catch (e) {
-      throw e;
+      handleError(e, vm, 'watcher getter');
     } finally {
       popTarget();
     }
@@ -89,7 +90,11 @@ export default class Watcher {
       if (value !== oldValue || typeof value === 'object') {
         this.value = value;
         if (this.cb) {
-            this.cb.call(this.vm, value, oldValue);
+            try {
+              this.cb.call(this.vm, value, oldValue);
+            } catch (e) {
+              handleError(e, this.vm, 'watcher callback');
+            }
         }
       }
     }

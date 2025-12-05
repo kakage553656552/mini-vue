@@ -5,6 +5,27 @@ export function initGlobalAPI(VueConstructor) {
   VueConstructor.options.components = Object.create(null);
   VueConstructor.options.directives = Object.create(null);
   VueConstructor.options.filters = Object.create(null);
+  VueConstructor.config = { errorHandler: null };
+
+  VueConstructor.extend = function (extendOptions) {
+    extendOptions = extendOptions || {};
+    const Super = this;
+    const Sub = function VueComponent(options) {
+      this._init(options);
+    };
+    Sub.prototype = Object.create(Super.prototype);
+    Sub.prototype.constructor = Sub;
+    Sub.options = Object.assign({}, Super.options, extendOptions);
+    Sub.super = Super;
+    Sub.extend = Super.extend;
+    Sub.component = Super.component;
+    Sub.directive = Super.directive;
+    Sub.filter = Super.filter;
+    return Sub;
+  };
+
+  VueConstructor.options.components['keep-alive'] = VueConstructor.extend(KeepAlive(VueConstructor));
+  VueConstructor.options.components['transition'] = VueConstructor.extend(Transition(VueConstructor));
 
   VueConstructor.component = function (id, definition) {
     if (!definition) {
@@ -34,23 +55,6 @@ export function initGlobalAPI(VueConstructor) {
     return definition;
   };
 
-  VueConstructor.extend = function (extendOptions) {
-    extendOptions = extendOptions || {};
-    const Super = this;
-    const Sub = function VueComponent(options) {
-      this._init(options);
-    };
-    Sub.prototype = Object.create(Super.prototype);
-    Sub.prototype.constructor = Sub;
-    Sub.options = Object.assign({}, Super.options, extendOptions);
-    Sub.super = Super;
-    Sub.extend = Super.extend;
-    Sub.component = Super.component;
-    Sub.directive = Super.directive;
-    Sub.filter = Super.filter;
-    return Sub;
-  };
-
   VueConstructor.mixin = function (mixin) {
     this.options = mergeOptions(this.options, mixin);
     return this;
@@ -71,5 +75,44 @@ function mergeOptions(parent, child) {
     options[key] = child[key] || parent[key];
   }
   return options;
+}
+
+function KeepAlive(VueConstructor) {
+  return {
+    name: 'keep-alive',
+    props: { include: null, exclude: null },
+    render() {
+      const slot = this.$slots && this.$slots.default;
+      const vnode = slot && slot[0];
+      if (!vnode) return;
+      const key = vnode.key || (vnode.componentOptions && vnode.componentOptions.tag) || '*';
+      this._cache = this._cache || {};
+      if (this._cache[key]) {
+        const cached = this._cache[key];
+        vnode.componentInstance = cached.componentInstance;
+        vnode.elm = cached.elm;
+      } else {
+        this._cache[key] = vnode;
+      }
+      vnode.data = vnode.data || {};
+      vnode.data.keepAlive = true;
+      return vnode;
+    }
+  };
+}
+
+function Transition(VueConstructor) {
+  return {
+    name: 'transition',
+    props: { name: 'v', duration: 300 },
+    render() {
+      const slot = this.$slots && this.$slots.default;
+      if (!slot || !slot.length) return;
+      const vnode = slot[0];
+      vnode.data = vnode.data || {};
+      vnode.data.transition = { name: this.name || 'v', duration: this.duration || 300 };
+      return vnode;
+    }
+  };
 }
 

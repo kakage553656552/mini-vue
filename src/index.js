@@ -42,6 +42,12 @@ Vue.prototype._l = function (val, render) {
 Vue.prototype._e = function () {
     return createTextVNode('');
 };
+Vue.prototype._t = function (name, fallback) {
+  const slot = this.$slots && this.$slots[name];
+  if (slot && slot.length) return slot;
+  if (fallback) return Array.isArray(fallback) ? fallback : [fallback];
+  return [];
+};
 
 Vue.prototype._render = function () {
   const vm = this;
@@ -56,7 +62,12 @@ Vue.prototype._render = function () {
 // Mount
 Vue.prototype.$mount = function (el) {
   const vm = this;
-  el = document.querySelector(el);
+  if (typeof el === 'string') {
+    el = document.querySelector(el);
+  }
+  if (!el) {
+    el = document.createElement('div');
+  }
   vm.$el = el;
 
   const options = vm.$options;

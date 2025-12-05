@@ -1,4 +1,4 @@
-import { observe } from '../observer/index.js';
+import { observe, defineReactive } from '../observer/index.js';
 import Watcher from '../observer/watcher.js';
 import Dep from '../observer/dep.js';
 
@@ -29,6 +29,7 @@ export function stateMixin(Vue) {
 
 export function initState(vm) {
   const opts = vm.$options;
+  if (opts.props) initProps(vm, opts.props, opts.propsData);
   if (opts.data) {
     initData(vm);
   } else {
@@ -156,4 +157,30 @@ function proxy(target, sourceKey, key) {
       target[sourceKey][key] = val;
     }
   });
+}
+
+function initProps(vm, propsOptions, propsData) {
+  const props = vm._props = {};
+  propsData = propsData || {};
+  const normalized = normalizePropsOptions(propsOptions);
+  const keys = Object.keys(normalized);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const value = propsData[key] !== undefined ? propsData[key] : normalized[key];
+    defineReactive(props, key, value);
+    if (!(key in vm)) {
+      proxy(vm, '_props', key);
+    }
+  }
+}
+
+function normalizePropsOptions(options) {
+  if (Array.isArray(options)) {
+    const res = {};
+    for (let i = 0; i < options.length; i++) {
+      res[options[i]] = undefined;
+    }
+    return res;
+  }
+  return options || {};
 }

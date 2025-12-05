@@ -21,6 +21,13 @@
         li { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         li:last-child { border-bottom: none; }
         .badge { background: #35495e; color: white; padding: 3px 8px; border-radius: 10px; font-size: 0.8em; }
+        .panel { border: 1px dashed #ccc; padding: 8px; border-radius: 6px; margin-bottom: 8px; background: #fafafa; }
+        .fade-enter { opacity: 0; }
+        .fade-enter-active { transition: opacity 0.3s; }
+        .fade-enter-to { opacity: 1; }
+        .fade-leave { opacity: 1; }
+        .fade-leave-active { transition: opacity 0.3s; }
+        .fade-leave-to { opacity: 0; }
     </style>
 </head>
 <body>
@@ -139,6 +146,61 @@
                 <p>销毁状态: <span class="highlight">{{ destroyedStr }}</span></p>
                 <button class="danger" @click="destroyApp">销毁应用 ($destroy)</button>
             </div>
+
+            <div class="card">
+                <h2>12. 组件通信 (props/emit)</h2>
+                <child-counter label="父传子计数" @update="childCount=$event"></child-counter>
+                <p>父组件同步计数: <span class="highlight">{{ childCount }}</span></p>
+            </div>
+
+            <div class="card">
+                <h2>13. 插槽 (默认/具名)</h2>
+                <slot-panel>
+                    <div slot="header" class="highlight">具名 header 插槽</div>
+                    <div>默认插槽内容: {{ message }}</div>
+                    <div slot="footer">页脚插槽: {{ footerText }}</div>
+                </slot-panel>
+            </div>
+
+            <div class="card">
+                <h2>14. keep-alive 缓存</h2>
+                <div style="margin-bottom:8px;">
+                    <button @click="activeTab='tab-a'">切换 Tab A</button>
+                    <button @click="activeTab='tab-b'">切换 Tab B</button>
+                </div>
+                <keep-alive>
+                    <component :is="activeTab"></component>
+                </keep-alive>
+            </div>
+
+            <div class="card">
+                <h2>15. provide / inject</h2>
+                <div style="margin-bottom:8px;">
+                    <input v-model="themeValue" placeholder="输入主题名">
+                    <button @click="bumpTheme">更新主题序号</button>
+                </div>
+                <provide-child></provide-child>
+            </div>
+
+            <div class="card">
+                <h2>16. 自定义指令钩子</h2>
+                <input v-model="directiveText" placeholder="输入文本" style="margin-bottom:8px;">
+                <input v-highlight="directiveText" placeholder="指令高亮输入框">
+            </div>
+
+            <div class="card">
+                <h2>17. 过渡动画</h2>
+                <button @click="showTrans=!showTrans">切换显示</button>
+                <transition name="fade">
+                    <p v-if="showTrans" class="highlight">带过渡的文本块</p>
+                </transition>
+            </div>
+
+            <div class="card">
+                <h2>18. 错误捕获 (errorCaptured)</h2>
+                <p>捕获信息: <span class="highlight">{{ errorMsg }}</span></p>
+                <error-boundary @caught="onErrorCaught"></error-boundary>
+            </div>
         </div>
     </div>
     
@@ -148,6 +210,102 @@
 
     <script type="module">
         import Vue from './src/index.js?v=2';
+
+        const ChildCounter = {
+            props: ['label'],
+            data() {
+                return { n: 0 };
+            },
+            methods: {
+                inc() {
+                    this.n++;
+                    this.$emit('update', this.n);
+                }
+            },
+            template: `
+              <div>
+                <p>{{ label }}：<span class="highlight">{{ n }}</span></p>
+                <button @click="inc">子组件自增</button>
+              </div>
+            `
+        };
+
+        const SlotPanel = {
+            template: `
+              <div class="panel">
+                <div><slot name="header"></slot></div>
+                <div><slot></slot></div>
+                <div><slot name="footer"></slot></div>
+              </div>
+            `
+        };
+
+        const TabA = {
+            data() {
+                return { count: 0 };
+            },
+            template: `<div class="panel">Tab A 次数：<span class="highlight">{{ count }}</span> <button @click="count++">+1</button></div>`
+        };
+
+        const TabB = {
+            data() {
+                return { count: 0 };
+            },
+            template: `<div class="panel">Tab B 次数：<span class="highlight">{{ count }}</span> <button @click="count++">+1</button></div>`
+        };
+
+        const ProvideChild = {
+            inject: ['theme', 'themeSeq'],
+            template: `<div class="panel">注入主题：<span class="highlight">{{ theme }}</span> (#{{ themeSeq }})</div>`
+        };
+
+        const ErrorThrower = {
+            template: `<button class="danger" @click="boom">抛出错误</button>`,
+            methods: {
+                boom() {
+                    throw new Error('子组件错误示例');
+                }
+            }
+        };
+
+        const ErrorBoundary = {
+            components: { ErrorThrower },
+            data() {
+                return { localError: '' };
+            },
+            errorCaptured(err) {
+                this.localError = err.message;
+                this.$emit('caught', err.message);
+                return false;
+            },
+            template: `
+              <div class="panel">
+                <p>本地捕获：<span class="highlight">{{ localError || '无' }}</span></p>
+                <error-thrower></error-thrower>
+              </div>
+            `
+        };
+
+        Vue.directive('highlight', {
+            bind(el, binding) {
+                el.style.background = '#fffae6';
+                el.value = binding.value || '';
+            },
+            update(el, binding) {
+                el.style.background = '#fffae6';
+                el.value = binding.value || '';
+            },
+            unbind(el) {
+                el.style.background = '';
+            }
+        });
+
+        Vue.component('child-counter', ChildCounter);
+        Vue.component('slot-panel', SlotPanel);
+        Vue.component('tab-a', TabA);
+        Vue.component('tab-b', TabB);
+        Vue.component('provide-child', ProvideChild);
+        Vue.component('error-boundary', ErrorBoundary);
 
         const vm = new Vue({
             el: '#app',
@@ -164,7 +322,15 @@
                 input1: '',
                 dynamicClass: 'highlight',
                 submitMsg: '',
-                customEventCount: 0
+                customEventCount: 0,
+                childCount: 0,
+                footerText: '页脚内容',
+                activeTab: 'tab-a',
+                themeValue: '默认主题',
+                themeSeq: 1,
+                directiveText: '',
+                showTrans: true,
+                errorMsg: ''
             },
             computed: {
                 reversedMessage() {
@@ -178,6 +344,12 @@
                 count(newVal, oldVal) {
                     this.watchLog = `从 ${oldVal} 变更为 ${newVal}`;
                     console.log(`[Watch] count 变化: ${oldVal} -> ${newVal}`);
+                },
+                themeValue(newVal) {
+                    this.syncProvide('theme', newVal);
+                },
+                themeSeq(newVal) {
+                    this.syncProvide('themeSeq', newVal);
                 }
             },
             methods: {
@@ -243,6 +415,23 @@
                     setTimeout(() => {
                         this.$destroy();
                     }, 0);
+                },
+                bumpTheme() {
+                    this.themeSeq++;
+                },
+                onErrorCaught(msg) {
+                    this.errorMsg = msg;
+                },
+                syncProvide(key, val) {
+                    if (!this._provided) this._provided = {};
+                    this._provided[key] = val;
+                    if (this.$children && this.$children.length) {
+                        this.$children.forEach(c => {
+                            if (c.$options && c.$options.inject) {
+                                c.$forceUpdate && c.$forceUpdate();
+                            }
+                        });
+                    }
                 }
             },
             beforeCreate() {
@@ -279,6 +468,12 @@
                 
                 const card = document.querySelector('.card:last-child .highlight:last-of-type');
                 if (card) card.textContent = '已销毁 (Destroyed)';
+            },
+            provide() {
+                return {
+                    theme: this.themeValue,
+                    themeSeq: this.themeSeq
+                };
             }
         });
     </script>

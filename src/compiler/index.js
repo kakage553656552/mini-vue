@@ -248,6 +248,11 @@ function generate(el) {
   if (el.if && !el.ifProcessed) {
     return genIf(el);
   }
+  if (el.tag === 'slot') {
+    const name = (el.attrsMap && el.attrsMap.name) || 'default';
+    const children = genChildren(el);
+    return `_t("${name}"${children ? `,${children}` : ''})`;
+  }
 
   const data = genData(el);
   const children = genChildren(el);
@@ -262,6 +267,7 @@ function generate(el) {
 function genData(el) {
   let data = '{';
   const attrs = el.attrsList;
+  const dirs = [];
   
   if (el.ref) {
     data += `"ref":"${el.ref}",`;
@@ -276,6 +282,10 @@ function genData(el) {
       const attr = attrs[i];
       const name = attr.name;
       let value = attr.value;
+      if (name.startsWith('v-') && name !== 'v-model' && name !== 'v-show' && !name.startsWith('v-on') && !name.startsWith('v-bind') && name !== 'v-if' && name !== 'v-else' && name !== 'v-else-if' && name !== 'v-for') {
+        dirs.push({ name: name.slice(2), value });
+        continue;
+      }
       
       if (name.startsWith('@') || name.startsWith('v-on:')) {
         let event = name.startsWith('@') ? name.slice(1) : name.slice(5);
@@ -308,12 +318,14 @@ function genData(el) {
         if (modifiers.stop) handler += `$event.stopPropagation();`;
         if (modifiers.prevent) handler += `$event.preventDefault();`;
         
+        const simplePathRE = /^[A-Za-z_$][\w$]*$/;
         if (value.includes('(')) {
           handler += `return (${value});`;
+        } else if (simplePathRE.test(value)) {
+          handler += `return this.${value}($event);`;
         } else {
-          handler += `return this.${value}();`;
+          handler += `return (${value});`;
         }
-        
         data += `"@${event}":function($event){${handler}},`;
       } else if (name.startsWith(':') || name.startsWith('v-bind:')) {
         const attrName = name.startsWith(':') ? name.slice(1) : name.slice(7);
@@ -328,6 +340,9 @@ function genData(el) {
     }
   }
   
+  if (dirs.length) {
+    data += `"directives":${JSON.stringify(dirs)},`;
+  }
   data = data.replace(/,$/, '') + '}';
   return data === '{}' ? null : data;
 }
