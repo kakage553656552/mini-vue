@@ -1,13 +1,15 @@
 <template>
   <div class="page">
-    this is my mini-vue app
     <h1>{{ title }}</h1>
     <p class="subtitle">{{ message }}</p>
     <div class="card">
       <p>计数：{{ count }}</p>
       <button @click="increment">加一</button>
     </div>
-    <hello-mini :msg="message"></hello-mini>
+    <hello-mini ref="helloMini" :msg="message" @callback="handleCallback"></hello-mini>
+    <div style="color: red;height: 100px;" v-for="item in list" :key="item">{{ item }}</div>
+    <button @click="handleAddItem">添加item</button>
+    <button @click="handleFatherCallback">父组件触发</button>
   </div>
 </template>
 
@@ -18,12 +20,23 @@ export default {
     return {
       title: '欢迎使用 Mini Vue CLI',
       message: '快速创建的示例项目',
-      count: 0
+      count: 0,
+      list: ['item1', 'item2', 'item3']
     };
   },
   methods: {
     increment() {
       this.count++;
+    },
+    handleCallback(msg) {
+      this.message = msg;
+      alert(msg)
+    },
+    handleFatherCallback() {
+      this.$refs.helloMini.handleCallback('父组件触发');
+    },
+    handleAddItem() {
+      this.list.push(`item${this.list.length + 1}`);
     }
   }
 };

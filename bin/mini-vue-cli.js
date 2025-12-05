@@ -23,7 +23,17 @@ async function main() {
   const pkg = {
     name: path.basename(targetDir),
     version: '1.0.0',
-    private: true
+    private: true,
+    scripts: {
+      build: "webpack --config webpack.config.cjs --mode production",
+      serve: "webpack serve --config webpack.config.cjs --mode development"
+    },
+    devDependencies: {
+      "copy-webpack-plugin": "^11.0.0",
+      "webpack": "^5.94.0",
+      "webpack-cli": "^5.1.4",
+      "webpack-dev-server": "^4.15.1"
+    }
   };
   await fs.writeFile(path.join(targetDir, 'package.json'), JSON.stringify(pkg, null, 2));
 
@@ -49,25 +59,26 @@ async function main() {
 <body>
   <div id="app"></div>
   <script src="./lib/mini-vue.js"></script>
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./dist/bundle.js"></script>
 </body>
 </html>
 `;
   await fs.writeFile(path.join(targetDir, 'index.html'), indexHtml);
 
-  const mainJs = `const [App, HelloMini] = await Promise.all([
-  Vue.loadSFC('./src/App.vue'),
-  Vue.loadSFC('./src/components/HelloMini.vue')
-]);
+  const mainJs = `(async () => {
+  const [App, HelloMini] = await Promise.all([
+    Vue.loadSFC(new URL('./App.vue', import.meta.url).href),
+    Vue.loadSFC(new URL('./components/HelloMini.vue', import.meta.url).href)
+  ]);
 
-Vue.component('hello-mini', HelloMini);
+  Vue.component('hello-mini', HelloMini);
 
-new Vue({
-  el: '#app',
-  components: { App },
-  template: '<App />'
-});
-`;
+  new Vue({
+    el: '#app',
+    components: { App },
+    template: '<App />'
+  });
+})();`;
   await fs.writeFile(path.join(targetDir, 'src', 'main.js'), mainJs);
 
   const appVue = `<template>
@@ -135,6 +146,43 @@ export default {
 </style>
 `;
   await fs.writeFile(path.join(targetDir, 'src', 'components', 'HelloMini.vue'), helloVue);
+
+  const webpackConfig = `const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  entry: path.resolve(__dirname, 'src/main.js'),
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
+    publicPath: '/dist/',
+    clean: true
+  },
+  plugins: [
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: '**/*.vue', to: 'src/[path][name][ext]', context: path.resolve(__dirname, 'src'), noErrorOnMissing: true }
+      ]
+    })
+  ],
+  devServer: {
+    static: {
+      directory: __dirname
+    },
+    host: '0.0.0.0',
+    port: 8080,
+    hot: false,
+    client: {
+      logging: 'info'
+    }
+  },
+  experiments: {
+    topLevelAwait: true
+  },
+  devtool: 'source-map'
+};
+`;
+  await fs.writeFile(path.join(targetDir, 'webpack.config.cjs'), webpackConfig);
 
   console.log(`已生成项目: ${targetDir}`);
   console.log('打开 index.html 即可预览，或使用任意静态服务器访问该目录');

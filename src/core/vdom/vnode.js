@@ -58,7 +58,7 @@ function createComponentVNode(tag, data, children, context) {
     return new VNode(tag, data, children, undefined, undefined, context);
   }
   const propsData = extractProps(data);
-  const listeners = extractListeners(data);
+  const listeners = extractListeners(data, context);
   const slots = resolveSlots(children);
   const componentOptions = { Ctor, tag, propsData, listeners, children, slots };
   const vnode = new VNode(tag, data, undefined, undefined, undefined, context, componentOptions);
@@ -85,12 +85,17 @@ function extractProps(data) {
   return props;
 }
 
-function extractListeners(data) {
+function extractListeners(data, context) {
   if (!data) return {};
   const on = {};
   Object.keys(data).forEach(key => {
     if (key.startsWith('@')) {
-      on[key.slice(1)] = data[key];
+      const handler = data[key];
+      if (typeof handler === 'function' && context) {
+        on[key.slice(1)] = handler.bind(context);
+      } else {
+        on[key.slice(1)] = handler;
+      }
     }
   });
   return on;
