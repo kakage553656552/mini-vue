@@ -3,9 +3,13 @@ import { callHook } from './lifecycle.js';
 import { mergeOptions, resolveSlots } from '../util/index.js';
 import { defineReactive } from '../observer/index.js';
 
+let uid = 0;
+
 export function initMixin(Vue) {
   Vue.prototype._init = function (options) {
     const vm = this;
+    vm._uid = ++uid;
+    vm._isVue = true;
     options = options || {};
     vm.$parent = options.parent;
     vm.$children = [];

@@ -1,4 +1,5 @@
 import Vue from '../instance/index.js';
+import { defineReactive } from '../observer/index.js';
 
 export function initGlobalAPI(VueConstructor) {
   VueConstructor.options = Object.create(null);
@@ -6,6 +7,8 @@ export function initGlobalAPI(VueConstructor) {
   VueConstructor.options.directives = Object.create(null);
   VueConstructor.options.filters = Object.create(null);
   VueConstructor.config = { errorHandler: null, devtools: true };
+  VueConstructor.version = '2.7.0-mini';
+  VueConstructor.util = { defineReactive };
   const installedPlugins = [];
 
   VueConstructor.use = function (plugin, ...args) {

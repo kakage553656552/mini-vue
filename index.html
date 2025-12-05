@@ -224,11 +224,11 @@
         <button id="reload-btn" class="primary" style="display: none;" onclick="window.location.reload()">重新加载组件 (Reload)</button>
     </div>
 
+    <script src="./dist/mini-vue.js"></script>
     <script type="module">
-        import Vue, { loadSFC } from './src/index.js?v=2';
         import DemoPlugin from './src/plugins/demo-plugin.js';
         Vue.use(DemoPlugin, { message: 'Mini Vue 插件生效', componentName: 'plugin-box', directiveName: 'plugin-bg', filterName: 'pluginCap' });
-        const SfcDemo = await loadSFC('./src/components/SfcDemo.vue');
+        const SfcDemo = await Vue.loadSFC('./src/components/SfcDemo.vue');
         Vue.component('sfc-demo', SfcDemo);
 
         const ChildCounter = {

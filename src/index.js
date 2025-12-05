@@ -105,6 +105,15 @@ function mountComponent(vm, el) {
   
   vm._isMounted = true;
   callHook(vm, 'mounted');
+
+  if (typeof window !== 'undefined') {
+    const hook = window.__VUE_DEVTOOLS_GLOBAL_HOOK__;
+    if (hook && hook.emit) {
+      hook.emit('app:init', vm, Vue.version || '2.x', { Vue });
+      hook.emit('component:added', vm, vm.$parent ? vm.$parent._uid : -1, vm._uid);
+      hook.emit('flush');
+    }
+  }
 }
 
 function normalizeScript(code) {
