@@ -241,21 +241,21 @@ function getAndRemoveAttr(el, name) {
   return val;
 }
 
-function generate(el) {
+function generate(el, options) {
   if (el.for && !el.forProcessed) {
-    return genFor(el);
+    return genFor(el, options);
   }
   if (el.if && !el.ifProcessed) {
-    return genIf(el);
+    return genIf(el, options);
   }
   if (el.tag === 'slot') {
     const name = (el.attrsMap && el.attrsMap.name) || 'default';
-    const children = genChildren(el);
+    const children = genChildren(el, options);
     return `_t("${name}"${children ? `,${children}` : ''})`;
   }
 
-  const data = genData(el);
-  const children = genChildren(el);
+  const data = genData(el, options);
+  const children = genChildren(el, options);
   const code = `_c('${el.tag}'${
     data ? `,${data}` : ',undefined'
   }${
@@ -264,11 +264,15 @@ function generate(el) {
   return code;
 }
 
-function genData(el) {
+function genData(el, options) {
   let data = '{';
   const attrs = el.attrsList;
   const dirs = [];
   
+  if (options && options.scopeId) {
+    data += `"data-v-${options.scopeId}":"",`;
+  }
+
   if (el.ref) {
     data += `"ref":"${el.ref}",`;
   }
@@ -347,39 +351,39 @@ function genData(el) {
   return data === '{}' ? null : data;
 }
 
-function genFor(el) {
+function genFor(el, options) {
   el.forProcessed = true;
-  return `_l((${el.for}), function(${el.alias}) { return ${generate(el)} })`;
+  return `_l((${el.for}), function(${el.alias}) { return ${generate(el, options)} })`;
 }
 
-function genIf(el) {
+function genIf(el, options) {
   el.ifProcessed = true;
-  return genIfConditions(el.ifConditions.slice());
+  return genIfConditions(el.ifConditions.slice(), options);
 }
 
-function genIfConditions(conditions) {
+function genIfConditions(conditions, options) {
   if (!conditions.length) {
     return '_e()';
   }
   
   const condition = conditions.shift();
   if (condition.exp) {
-    return `(${condition.exp}) ? ${generate(condition.block)} : ${genIfConditions(conditions)}`;
+    return `(${condition.exp}) ? ${generate(condition.block, options)} : ${genIfConditions(conditions, options)}`;
   } else {
-    return generate(condition.block);
+    return generate(condition.block, options);
   }
 }
 
-function genChildren(el) {
+function genChildren(el, options) {
   const children = el.children;
   if (children.length) {
-    return `[${children.map(c => gen(c)).join(',')}]`;
+    return `[${children.map(c => gen(c, options)).join(',')}]`;
   }
 }
 
-function gen(node) {
+function gen(node, options) {
   if (node.type === 1) {
-    return generate(node);
+    return generate(node, options);
   } else {
     const text = node.text;
     if (defaultTagRE.test(text)) {
@@ -404,9 +408,9 @@ function gen(node) {
   }
 }
 
-export function compileToFunctions(template) {
+export function compileToFunctions(template, options = {}) {
   const ast = parse(template);
-  const code = `with(this){return ${generate(ast)}}`;
+  const code = `with(this){return ${generate(ast, options)}}`;
   // eslint-disable-next-line no-new-func
   const render = new Function(code);
   return render;

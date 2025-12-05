@@ -201,6 +201,11 @@
                 <p>捕获信息: <span class="highlight">{{ errorMsg }}</span></p>
                 <error-boundary @caught="onErrorCaught"></error-boundary>
             </div>
+
+            <div class="card">
+                <h2>19. 单文件组件支持</h2>
+                <sfc-demo></sfc-demo>
+            </div>
         </div>
     </div>
     
@@ -209,7 +214,9 @@
     </div>
 
     <script type="module">
-        import Vue from './src/index.js?v=2';
+        import Vue, { loadSFC } from './src/index.js?v=2';
+        const SfcDemo = await loadSFC('./src/components/SfcDemo.vue');
+        Vue.component('sfc-demo', SfcDemo);
 
         const ChildCounter = {
             props: ['label'],

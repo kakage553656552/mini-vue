@@ -1,5 +1,6 @@
 import Vue from './core/instance/index.js';
 import { compileToFunctions } from './compiler/index.js';
+import { parseSFC, compileSFCStyles } from './compiler/sfc.js';
 import { patch } from './core/vdom/patch.js';
 import Watcher from './core/observer/watcher.js';
 import VNode, { createElementVNode, createTextVNode } from './core/vdom/vnode.js';
@@ -104,5 +105,35 @@ function mountComponent(vm, el) {
   vm._isMounted = true;
   callHook(vm, 'mounted');
 }
+
+function normalizeScript(code) {
+  if (!code) return {};
+  const wrapped = code.replace(/export\s+default/, 'return ');
+  const fn = new Function('Vue', wrapped);
+  const res = fn(Vue);
+  if (res && res.default) return res.default;
+  return res || {};
+}
+
+export async function loadSFC(url) {
+  const res = await fetch(url);
+  const source = await res.text();
+  const descriptor = parseSFC(source);
+  if (descriptor.styles && descriptor.styles.length) {
+    compileSFCStyles(descriptor.styles, descriptor.scopeId);
+  }
+  const options = normalizeScript(descriptor.script);
+  if (descriptor.template) {
+    options.render = compileToFunctions(descriptor.template, {
+      scopeId: descriptor.scopeId
+    });
+  }
+  if (descriptor.scopeId) {
+    options._scopeId = descriptor.scopeId;
+  }
+  return options;
+}
+
+Vue.loadSFC = loadSFC;
 
 export default Vue;

@@ -92,6 +92,7 @@ function createComponent(vnode, parent, refElm) {
   if (!options) return false;
   if (vnode.data && vnode.data.keepAlive && vnode.componentInstance) {
     vnode.elm = vnode.componentInstance.$el;
+    applyScopeToChildRoot(vnode);
     if (parent) parent.insertBefore(vnode.elm, refElm);
     return true;
   }
@@ -107,6 +108,7 @@ function createComponent(vnode, parent, refElm) {
   vnode.componentInstance = child;
   child.$mount();
   vnode.elm = child.$el;
+  applyScopeToChildRoot(vnode);
   if (parent) parent.insertBefore(child.$el, refElm);
   if (vnode.data && vnode.data.ref && vnode.context) {
     registerRef(vnode.context, vnode.data.ref, child);
@@ -367,6 +369,22 @@ function registerRef(vm, refKey, el) {
         vm.$refs = {};
     }
     vm.$refs[refKey] = el;
+}
+
+function applyScopeToChildRoot(vnode) {
+  if (!vnode || !vnode.componentInstance) return;
+  const el = vnode.componentInstance.$el;
+  if (!el) return;
+  const data = vnode.data || {};
+  Object.keys(data).forEach(key => {
+    if (key.startsWith('data-v-')) {
+      el.setAttribute(key, data[key]);
+    }
+  });
+  const parentScope = vnode.context && vnode.context.$options && vnode.context.$options._scopeId;
+  if (parentScope) {
+    el.setAttribute(`data-v-${parentScope}`, '');
+  }
 }
 
 function invokeDirectives(oldVnode, vnode, hook) {

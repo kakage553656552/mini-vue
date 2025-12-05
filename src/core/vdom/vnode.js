@@ -20,6 +20,11 @@ export function createTextVNode(text) {
 }
 
 export function createElementVNode(tag, data, children, context) {
+  data = data || {};
+  const scopeId = context && context.$options && context.$options._scopeId;
+  if (scopeId && !data[`data-v-${scopeId}`]) {
+    data[`data-v-${scopeId}`] = '';
+  }
   if (Array.isArray(children)) {
     children = normalizeChildren(children);
   }
