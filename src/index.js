@@ -5,6 +5,7 @@ import { patch } from './core/vdom/patch.js';
 import Watcher from './core/observer/watcher.js';
 import VNode, { createElementVNode, createTextVNode } from './core/vdom/vnode.js';
 import { callHook } from './core/instance/lifecycle.js';
+import initDevtools from './devtools.js';
 
 Vue.prototype.__patch__ = patch;
 
@@ -135,5 +136,6 @@ export async function loadSFC(url) {
 }
 
 Vue.loadSFC = loadSFC;
+initDevtools(Vue);
 
 export default Vue;

@@ -5,7 +5,7 @@ export function initGlobalAPI(VueConstructor) {
   VueConstructor.options.components = Object.create(null);
   VueConstructor.options.directives = Object.create(null);
   VueConstructor.options.filters = Object.create(null);
-  VueConstructor.config = { errorHandler: null };
+  VueConstructor.config = { errorHandler: null, devtools: true };
   const installedPlugins = [];
 
   VueConstructor.use = function (plugin, ...args) {
