@@ -5,10 +5,14 @@
   "description": "A simplified Vue 2 implementation",
   "main": "dist/mini-vue.js",
   "module": "src/index.js",
+  "bin": {
+    "mini-vue-cli": "./bin/mini-vue-cli.js"
+  },
   "license": "MIT",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "create:demo": "node ./bin/mini-vue-cli.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
