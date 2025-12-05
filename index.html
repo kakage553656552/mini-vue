@@ -206,6 +206,17 @@
                 <h2>19. 单文件组件支持</h2>
                 <sfc-demo></sfc-demo>
             </div>
+
+            <div class="card">
+                <h2>20. 插件系统</h2>
+                <div style="margin-bottom:8px;">
+                    <input v-model="pluginText" placeholder="输入插件文本">
+                    <input v-model="pluginColor" placeholder="输入背景色(如 #e8f5e9)" style="margin-left:8px;">
+                </div>
+                <p>插件消息：<span class="highlight">{{ $pluginMessage }}</span></p>
+                <p v-plugin-bg="pluginColor" style="padding:8px;border-radius:4px;">指令应用区域：{{ pluginText }}</p>
+                <plugin-box :text="pluginText"></plugin-box>
+            </div>
         </div>
     </div>
     
@@ -215,6 +226,8 @@
 
     <script type="module">
         import Vue, { loadSFC } from './src/index.js?v=2';
+        import DemoPlugin from './src/plugins/demo-plugin.js';
+        Vue.use(DemoPlugin, { message: 'Mini Vue 插件生效', componentName: 'plugin-box', directiveName: 'plugin-bg', filterName: 'pluginCap' });
         const SfcDemo = await loadSFC('./src/components/SfcDemo.vue');
         Vue.component('sfc-demo', SfcDemo);
 
@@ -337,7 +350,9 @@
                 themeSeq: 1,
                 directiveText: '',
                 showTrans: true,
-                errorMsg: ''
+                errorMsg: '',
+                pluginText: '插件内容',
+                pluginColor: '#e8f5e9'
             },
             computed: {
                 reversedMessage() {

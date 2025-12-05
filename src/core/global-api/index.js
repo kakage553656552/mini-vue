@@ -6,6 +6,21 @@ export function initGlobalAPI(VueConstructor) {
   VueConstructor.options.directives = Object.create(null);
   VueConstructor.options.filters = Object.create(null);
   VueConstructor.config = { errorHandler: null };
+  const installedPlugins = [];
+
+  VueConstructor.use = function (plugin, ...args) {
+    if (installedPlugins.indexOf(plugin) > -1) {
+      return this;
+    }
+    args.unshift(this);
+    if (typeof plugin === 'function') {
+      plugin.apply(null, args);
+    } else if (plugin && typeof plugin.install === 'function') {
+      plugin.install.apply(plugin, args);
+    }
+    installedPlugins.push(plugin);
+    return this;
+  };
 
   VueConstructor.extend = function (extendOptions) {
     extendOptions = extendOptions || {};
