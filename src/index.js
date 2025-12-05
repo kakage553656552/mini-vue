@@ -116,7 +116,7 @@ function normalizeScript(code) {
   return res || {};
 }
 
-export async function loadSFC(url) {
+async function loadSFC(url) {
   const res = await fetch(url);
   const source = await res.text();
   const descriptor = parseSFC(source);
